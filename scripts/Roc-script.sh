@@ -4,7 +4,6 @@
 set -e
 
 # ====================== 1. 修改默认管理IP + 主机名 ======================
-sed -i 's/192.168.1.1/192.168.50.1/g' package/base-files/files/bin/config_generate
 sed -i 's/OpenWrt/360V6-NSS/g' package/base-files/files/bin/config_generate
 
 # ====================== 2. 拉取 EasyTier 插件 ======================
@@ -13,13 +12,7 @@ git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/lu
 # ====================== 2.1 拉取网络向导插件 ======================
 git clone --depth 1 https://github.com/sirpdboy/luci-app-netwizard.git package/luci-app-netwizard 2>/dev/null || true
 
-# ====================== 3. 无线驱动参数优化 ======================
-mkdir -p package/base-files/files/etc/modprobe.d
-cat > package/base-files/files/etc/modprobe.d/ath11k.conf <<EOF
-options ath11k irq_mode=0x1
-options ath11k disable_160mhz=1
-options ath11k reset_on_err=1
-EOF
+# ====================== 3. 无线驱动参数优化（已移除，避免修改WiFi配置时接口丢失） ======================
 
 # ====================== 4. 系统全局性能调优 ======================
 cat > package/base-files/files/etc/sysctl.conf <<EOF
@@ -46,6 +39,11 @@ EOF
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-base-setting <<EOF
 #!/bin/sh
+# 修改默认管理 IP
+uci set network.lan.ipaddr='192.168.50.1'
+uci set network.lan.netmask='255.255.255.0'
+uci commit network
+
 # 全局中文 + 时区
 uci set luci.main.lang=zh-cn
 uci commit luci
