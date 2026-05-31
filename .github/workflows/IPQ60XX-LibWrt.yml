@@ -182,7 +182,7 @@ jobs:
           body: |
             **This is OpenWrt Firmware for ${{ env.FIRMWARE_TAG }}**
             ### 📒 固件信息
-            - 这是开启全功能NSS的6.12内核固件，默认主题为Aurora；包含 OpenClash、AdGuardHome（中文界面预设）、EasyTier、网络向导、DDNS、Samba4、DiskMan、WatchCat 等常用插件，具体详见 IPQ60XX.config 和 General.config。
+            - 这是开启全功能NSS的6.12内核固件，默认主题为Aurora；包含 OpenClash、EasyTier、网络向导、Web终端(ttyd)、DDNS、Samba4、DiskMan、WatchCat 等常用插件，具体详见 IPQ60XX.config 和 General.config。
             - 💻 这是 ${{ env.FIRMWARE_TAG }} 平台使用的 OpenWrt 固件
             - ⚽ 固件源码: ${{ env.REPO_URL }}
             - 💝 源码分支: ${{ env.REPO_BRANCH }}
