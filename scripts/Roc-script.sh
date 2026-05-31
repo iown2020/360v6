@@ -83,6 +83,10 @@ uci commit system
 uci set dhcp.@dnsmasq[0].cache-size='4096'
 uci commit dhcp
 
+# 防火墙：启用全锥型NAT（Full Cone NAT）
+uci set firewall.@defaults[0].fullcone='1'
+uci commit firewall
+
 # 关闭冗余日志服务
 /etc/init.d/logd stop
 /etc/init.d/logd disable
