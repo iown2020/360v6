@@ -10,6 +10,9 @@ sed -i 's/OpenWrt/360V6-NSS/g' package/base-files/files/bin/config_generate
 # ====================== 2. 拉取 EasyTier 插件 ======================
 git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/luci-app-easytier 2>/dev/null || true
 
+# ====================== 2.1 拉取网络向导插件 ======================
+git clone --depth 1 https://github.com/sirpdboy/luci-app-netwizard.git package/luci-app-netwizard 2>/dev/null || true
+
 # ====================== 3. 无线驱动参数优化 ======================
 mkdir -p package/base-files/files/etc/modprobe.d
 cat > package/base-files/files/etc/modprobe.d/ath11k.conf <<EOF
