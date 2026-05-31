@@ -1,6 +1,6 @@
 #!/bin/bash
 # 360V6 IPQ60XX 512M 全功能优化脚本
-# 特性：无独立files目录 | 固定IP | 全局中文 | 性能优化 | WiFi AU满功率 | AdGuardHome | EasyTier
+# 特性：无独立files目录 | 固定IP | 全局中文 | 性能优化 | WiFi AU满功率 | EasyTier
 set -e
 
 # ====================== 1. 修改默认管理IP + 主机名 ======================
@@ -56,8 +56,7 @@ uci set system.@system[0].conloglevel='1'
 uci set system.@system[0].cronloglevel='1'
 uci commit system
 
-# dnsmasq 转发至 AdGuardHome
-uci set dhcp.@dnsmasq[0].server='127.0.0.1#5353'
+# dnsmasq 缓存设置
 uci set dhcp.@dnsmasq[0].cache-size='4096'
 uci commit dhcp
 
@@ -93,74 +92,3 @@ uci commit wireless
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-wifi-setting
-
-# ====================== 7. AdGuardHome 完整优化配置 ======================
-cat > package/base-files/files/etc/uci-defaults/99-adguardhome-setting <<'EOF'
-#!/bin/sh
-# 等待 AdGuardHome 服务就绪
-sleep 5
-
-# 检查 adguardhome init 脚本是否存在
-if [ -x /etc/init.d/adguardhome ]; then
-  # 确保 UCI 配置存在
-  uci -q get adguardhome.adguardhome >/dev/null || uci set adguardhome.adguardhome='adguardhome'
-  uci set adguardhome.adguardhome.enabled='1'
-  uci set adguardhome.adguardhome.port='5353'
-  uci set adguardhome.adguardhome.web_port='3000'
-  uci commit adguardhome
-fi
-
-# 写入 AGH 核心配置文件
-mkdir -p /etc/AdGuardHome
-cat > /etc/AdGuardHome/AdGuardHome.yaml <<'AGH_CONF'
-bind_host: 0.0.0.0
-bind_port: 3000
-beta: false
-language: zh-cn
-dns:
-  bind_host: 0.0.0.0
-  port: 5353
-  timeout: 5
-  blocked_response_ttl: 60
-  ratelimit: 0
-  max_goroutines: 512
-  cache_size: 16777216
-  cache_ttl_min: 300
-  cache_ttl_max: 86400
-  upstream_dns:
-  - 223.5.5.5
-  - 223.6.6.6
-  - 114.114.114.114
-  - 94.140.14.49
-  - 94.140.14.59
-  all_servers: true
-  use_dnssec: true
-filters:
-  - enabled: true
-    url: https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt
-    name: AdGuard 基础过滤
-  - enabled: true
-    url: https://easylist-downloads.adblockplus.org/easylistchina.txt
-    name: 国内广告过滤
-  - enabled: true
-    url: https://anti-ad.net/easylist.txt
-    name: 去广告规则
-  - enabled: true
-    url: https://raw.githubusercontent.com/AdguardTeam/FiltersRegistry/master/filters/tracking-protection/filter.txt
-    name: 隐私追踪拦截
-querylog:
-  enabled: true
-  file_enabled: false
-  mem_size: 800
-http:
-  enabled: true
-  addresses:
-    allowed: []
-    disallowed: []
-AGH_CONF
-
-# 启用并启动服务
-[ -x /etc/init.d/adguardhome ] && /etc/init.d/adguardhome enable
-exit 0
-EOF
-chmod +x package/base-files/files/etc/uci-defaults/99-adguardhome-setting
