@@ -38,6 +38,7 @@ jobs:
           echo "--------------------------硬盘信息--------------------------"
           echo "硬盘数量：$(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
+      # ============ 优化1：缓存 apt 编译依赖 ============
       - name: 缓存 apt 依赖
         uses: actions/cache@v4
         with:
@@ -49,15 +50,17 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          # 从缓存恢复 apt 包
           if [ -d ~/apt-cache ]; then
             sudo cp -r ~/apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           fi
           sudo -E apt-get -y update
           sudo -E apt-get -y install $(curl -fsSL ophub.org/ubuntu2404-make-openwrt-depends)
+          # 保存 apt 包到缓存
           mkdir -p ~/apt-cache
           cp /var/cache/apt/archives/*.deb ~/apt-cache/ 2>/dev/null || true
           sudo -E systemctl daemon-reload
-          sudo timedapectl set-timezone "$TZ"
+          sudo timedatectl set-timezone "$TZ"
 
       - name: 克隆 OpenWrt 源码
         run: |
@@ -86,6 +89,7 @@ jobs:
           echo "HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
           echo "CACHE_DATE=$(date +"%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
 
+      # ============ 优化2：缓存工具链 + ccache + dl 下载源码 ============
       - name: 缓存工具链、ccache 和 dl 目录
         uses: actions/cache@v4
         with:
@@ -127,6 +131,7 @@ jobs:
           cd $OPENWRT_PATH
           make download -j$(nproc)
 
+      # ============ 优化3：启用 ccache 加速编译 ============
       - name: 编译固件（ccache 加速 + 自动容错）
         id: compile
         run: |
@@ -176,7 +181,7 @@ jobs:
           body: |
             **This is OpenWrt Firmware for ${{ env.FIRMWARE_TAG }}**
             ### 📒 固件信息
-            - 这是开启全功能NSS的6.12内核固件，默认主题为Aurora；该固件在LibWrt的基础上，添加了额外的软件包OpenClash、AdGuardHome、EasyTier、cpufreq、ddns、upnp、wol、samba4、vlmcsd、autoreboot、diskman、hd-idle、wireguard、watchcat，并添加了若干工具，具体详见IPQ60XX.config和General.config。
+            - 这是开启全功能NSS的6.12内核固件，默认主题为Aurora；包含 OpenClash、AdGuardHome（中文界面预设）、EasyTier、网络向导、DDNS、Samba4、DiskMan、WatchCat 等常用插件，具体详见 IPQ60XX.config 和 General.config。
             - 💻 这是 ${{ env.FIRMWARE_TAG }} 平台使用的 OpenWrt 固件
             - ⚽ 固件源码: ${{ env.REPO_URL }}
             - 💝 源码分支: ${{ env.REPO_BRANCH }}
