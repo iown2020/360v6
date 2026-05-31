@@ -92,20 +92,28 @@ EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-wifi-setting
 
 # ====================== 7. AdGuardHome 完整优化配置 ======================
-cat > package/base-files/files/etc/uci-defaults/99-adguardhome-setting <<EOF
+cat > package/base-files/files/etc/uci-defaults/99-adguardhome-setting <<'EOF'
 #!/bin/sh
-# AGH 端口与启用
-uci set adguardhome.adguardhome.enabled='1'
-uci set adguardhome.adguardhome.port='5353'
-uci set adguardhome.adguardhome.web_port='3000'
-uci commit adguardhome
+# 等待 AdGuardHome 服务就绪
+sleep 5
 
-# 写入AGH核心配置
+# 检查 adguardhome init 脚本是否存在
+if [ -x /etc/init.d/adguardhome ]; then
+  # 确保 UCI 配置存在
+  uci -q get adguardhome.adguardhome >/dev/null || uci set adguardhome.adguardhome='adguardhome'
+  uci set adguardhome.adguardhome.enabled='1'
+  uci set adguardhome.adguardhome.port='5353'
+  uci set adguardhome.adguardhome.web_port='3000'
+  uci commit adguardhome
+fi
+
+# 写入 AGH 核心配置文件
 mkdir -p /etc/AdGuardHome
-cat > /etc/AdGuardHome/AdGuardHome.yaml <<AGH_CONF
+cat > /etc/AdGuardHome/AdGuardHome.yaml <<'AGH_CONF'
 bind_host: 0.0.0.0
 bind_port: 3000
 beta: false
+language: zh-cn
 dns:
   bind_host: 0.0.0.0
   port: 5353
@@ -148,7 +156,8 @@ http:
     disallowed: []
 AGH_CONF
 
-/etc/init.d/adguardhome enable
+# 启用并启动服务
+[ -x /etc/init.d/adguardhome ] && /etc/init.d/adguardhome enable
 exit 0
 EOF
 chmod +x package/base-files/files/etc/uci-defaults/99-adguardhome-setting
