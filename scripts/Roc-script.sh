@@ -12,6 +12,34 @@ git clone --depth 1 https://github.com/EasyTier/luci-app-easytier.git package/lu
 # ====================== 2.1 拉取网络向导插件 ======================
 git clone --depth 1 https://github.com/sirpdboy/luci-app-netwizard.git package/luci-app-netwizard 2>/dev/null || true
 
+# ====================== 2.2 netwizard 完成后 NSS 恢复钩子 ======================
+# 网络向导会一次性修改多个网络配置，可能导致 NSS 驱动无法正确恢复
+# 在 netwizard 完成后自动重启 NSS 服务
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/95-netwizard-nss-fix <<'EOF'
+#!/bin/sh
+# 等待 netwizard 完成所有网络配置
+sleep 5
+
+# 重启 NSS 服务恢复接口绑定
+if [ -x /etc/init.d/qca-nss-ecm ]; then
+    /etc/init.d/qca-nss-ecm restart 2>/dev/null
+fi
+if [ -x /etc/init.d/qca-nss-drv-wifi ]; then
+    /etc/init.d/qca-nss-drv-wifi restart 2>/dev/null
+fi
+if [ -x /etc/init.d/firewall ]; then
+    /etc/init.d/firewall reload 2>/dev/null
+fi
+
+# 重启网络服务确保所有接口正常
+/etc/init.d/network restart 2>/dev/null
+
+rm -f /etc/uci-defaults/95-netwizard-nss-fix
+exit 0
+EOF
+chmod +x package/base-files/files/etc/uci-defaults/95-netwizard-nss-fix
+
 # ====================== 3. NSS 网络重载修复（解决修改LuCI设置后WAN/WAN6消失） ======================
 # IPQ60XX + NSS 固件在 uci commit 触发 netifd 重载时，
 # NSS ECM/DP 驱动可能无法正确恢复接口绑定，导致 WAN/WAN6 消失、下级设备断线。
@@ -97,40 +125,44 @@ chmod +x package/base-files/files/etc/uci-defaults/99-base-setting
 # ====================== 6. AdGuardHome 预配置 ======================
 cat > package/base-files/files/etc/uci-defaults/99-adguardhome-setting <<'EOF'
 #!/bin/sh
-# 等待 AdGuardHome 首次启动初始化完成
-sleep 5
-
-# 读取 AdGuardHome 配置文件路径
-AGH_CONF="$(uci -q get adguardhome.adguardhome.configdir)/AdGuardHome.yaml"
-[ -f "$AGH_CONF" ] || { rm -f /etc/uci-defaults/99-adguardhome-setting; exit 0; }
-
-# 备份原始配置
-cp "$AGH_CONF" "${AGH_CONF}.bak"
-
-# 使用 sed 修改关键配置项（避免 heredoc 变量扩展问题）
-# 设置监听端口：HTTP 3000（管理界面）
-sed -i 's/^  port: .*/  port: 3000/' "$AGH_CONF"
-# 设置 DNS 监听端口：53
-sed -i 's/^  port: .*/  port: 53/' "$AGH_CONF"
-# 设置中文界面
-sed -i 's/^  language: .*/  language: zh-cn/' "$AGH_CONF"
-
-# 设置上游 DNS（阿里 + 腾讯 + Cloudflare）
-sed -i '/^  upstream_dns:/,/^[^ ]/ {
-    /^  upstream_dns:/!{
-        /^  - /d
-    }
-}' "$AGH_CONF"
-sed -i '/^  upstream_dns:/a\  - https://dns.alidns.com/dns-query\n  - https://doh.pub/dns-query\n  - https://1.1.1.1/dns-query' "$AGH_CONF"
-
-# 启用 AdGuardHome 并设置开机自启
+# 先启用 AdGuardHome 服务
 uci set adguardhome.adguardhome.enabled='1'
 uci set adguardhome.adguardhome.redirect='1'
 uci set adguardhome.adguardhome.httpport='3000'
 uci commit adguardhome
 
-# 重启 AdGuardHome 使配置生效
-/etc/init.d/adguardhome restart 2>/dev/null
+# 启动 AdGuardHome 服务（首次启动会生成默认配置）
+/etc/init.d/adguardhome enable 2>/dev/null
+/etc/init.d/adguardhome start 2>/dev/null
+
+# 等待配置文件生成（最多等待30秒）
+AGH_CONF=""
+for i in $(seq 1 30); do
+    AGH_CONF="$(uci -q get adguardhome.adguardhome.configdir)/AdGuardHome.yaml"
+    [ -f "$AGH_CONF" ] && break
+    sleep 1
+done
+
+# 如果配置文件存在则修改
+if [ -f "$AGH_CONF" ]; then
+    # 备份原始配置
+    cp "$AGH_CONF" "${AGH_CONF}.bak"
+
+    # 设置中文界面（先删除再添加，确保生效）
+    sed -i '/^language:/d' "$AGH_CONF"
+    sed -i '1i\language: zh-cn' "$AGH_CONF"
+    
+    # 设置上游 DNS（阿里 + 腾讯 + Cloudflare）
+    sed -i '/^  upstream_dns:/,/^[^ ]/ {
+        /^  upstream_dns:/!{
+            /^  - /d
+        }
+    }' "$AGH_CONF"
+    sed -i '/^  upstream_dns:/a\  - https://dns.alidns.com/dns-query\n  - https://doh.pub/dns-query\n  - https://1.1.1.1/dns-query' "$AGH_CONF"
+
+    # 重启 AdGuardHome 使配置生效
+    /etc/init.d/adguardhome restart 2>/dev/null
+fi
 
 rm -f /etc/uci-defaults/99-adguardhome-setting
 exit 0
